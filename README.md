@@ -18,19 +18,53 @@
 - 공공데이터: 교통약자이동지원, 초정밀버스, 교통안전신호등
 - 지도/위치: Kakao Map API
 
-## 백엔드 실행 방법
+## 빠른 시작
+
+### Docker로 전체 실행
+
+현재 백엔드는 Docker Compose 기준으로 MySQL과 함께 실행할 수 있습니다.
+
+준비:
+
+- Docker Desktop 또는 Docker Engine 설치
+- `ANTHROPIC_API_KEY`
+- `PUBLIC_DATA_API_KEY`
+
+실행:
+
+```bash
+cd backend
+docker compose up --build
+```
+
+실행 후 접속 주소:
+
+- 백엔드 API: `http://localhost:8080`
+- MySQL: `localhost:3306`
+
+Docker Compose 구성:
+
+- MySQL 컨테이너
+- Spring Boot 백엔드 컨테이너
+- [backend/schema.sql](/C:/Users/kmg02/MOOVE/moove-backend/backend/schema.sql) 자동 적용
+
+주의:
+
+- `backend/docker-compose.yml`은 `ANTHROPIC_API_KEY`, `PUBLIC_DATA_API_KEY`를 환경 변수에서 읽습니다.
+- 로컬 쉘에 환경 변수를 넣고 실행하거나, Docker가 읽을 수 있는 `.env` 파일을 별도로 준비해야 합니다.
+
+## 로컬 실행
+
+Docker를 쓰지 않고 직접 실행하려면 아래 순서로 진행합니다.
 
 ### 1. 준비 사항
 
 - Java 17 설치
 - MySQL 8.0 실행
-- Gradle 설치
-
-현재 저장소에는 `gradlew`/`gradlew.bat`가 없어서 로컬에 설치된 `gradle` 명령을 사용해야 합니다.
 
 ### 2. 데이터베이스 준비
 
-MySQL에서 DB를 만든 뒤 [backend/schema.sql](/C:/Users/kmg02/MOOVE/moove-backend/backend/schema.sql) 내용을 적용합니다.
+MySQL에 `moove` 데이터베이스를 생성하고 [backend/schema.sql](/C:/Users/kmg02/MOOVE/moove-backend/backend/schema.sql)을 적용합니다.
 
 예시:
 
@@ -39,8 +73,6 @@ CREATE DATABASE moove CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
 ### 3. 환경 변수 설정
-
-로컬에서 아래 값을 설정합니다.
 
 - `ANTHROPIC_API_KEY`
 - `PUBLIC_DATA_API_KEY`
@@ -60,20 +92,36 @@ DB_PASSWORD=moove1234
 
 ### 4. 실행
 
+Gradle Wrapper가 복구되어 아래 명령으로 실행할 수 있습니다.
+
+macOS / Linux:
+
 ```bash
 cd backend
-gradle bootRun
+./gradlew bootRun
 ```
 
-기본 실행 주소:
+Windows PowerShell:
 
-- API 서버: `http://localhost:8080`
+```powershell
+cd backend
+.\gradlew.bat bootRun
+```
 
 ### 5. 테스트
 
+macOS / Linux:
+
 ```bash
 cd backend
-gradle test
+./gradlew test
+```
+
+Windows PowerShell:
+
+```powershell
+cd backend
+.\gradlew.bat test
 ```
 
 ## 주요 백엔드 기능
@@ -89,8 +137,10 @@ gradle test
 
 자세한 API 문서는 [docs/API_SPEC.md](/C:/Users/kmg02/MOOVE/moove-backend/docs/API_SPEC.md)를 참고하세요.
 
-## 백엔드 설정 파일
+## 주요 설정 파일
 
+- Docker Compose: [backend/docker-compose.yml](/C:/Users/kmg02/MOOVE/moove-backend/backend/docker-compose.yml)
+- Dockerfile: [backend/Dockerfile](/C:/Users/kmg02/MOOVE/moove-backend/backend/Dockerfile)
 - 메인 설정: [backend/src/main/resources/application.yml](/C:/Users/kmg02/MOOVE/moove-backend/backend/src/main/resources/application.yml)
 - 테스트 설정: [backend/src/main/resources/application-test.yml](/C:/Users/kmg02/MOOVE/moove-backend/backend/src/main/resources/application-test.yml)
 
@@ -99,4 +149,4 @@ gradle test
 - 백엔드는 `backend/` 기준으로 작업합니다.
 - 프론트엔드는 `frontend/` 기준으로 작업합니다.
 - `.env`와 실제 키 값은 절대 커밋하지 않습니다.
-- `stdgCd`는 클라이언트가 Kakao Map `coord2regioncode` 결과를 사용해 전달합니다.
+- `stdgCd`는 프론트가 Kakao Map `coord2regioncode` 결과를 사용해 전달합니다.
