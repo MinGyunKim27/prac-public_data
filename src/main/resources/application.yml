@@ -1,0 +1,31 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/moove?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:moove}
+    password: ${DB_PASSWORD:moove1234}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY}
+  model: claude-sonnet-4-5
+  max-tokens: 512
+
+public:
+  data:
+    api-key: ${PUBLIC_DATA_API_KEY}
+    base-url: https://apis.data.go.kr
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.moove: INFO

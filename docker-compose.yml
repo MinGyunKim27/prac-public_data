@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: moove-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_DATABASE: moove
+      MYSQL_USER: moove
+      MYSQL_PASSWORD: moove1234
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: moove-backend
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/moove?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      DB_USERNAME: moove
+      DB_PASSWORD: moove1234
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      PUBLIC_DATA_API_KEY: ${PUBLIC_DATA_API_KEY}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

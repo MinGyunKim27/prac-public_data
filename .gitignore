@@ -1,0 +1,24 @@
+.gradle/
+build/
+.env
+.env.example
+*.env.local
+*.env.production
+*.env.*.local
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Spring Boot jar
+*.jar
+!gradle/wrapper/gradle-wrapper.jar

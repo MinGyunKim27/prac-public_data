@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  h2:
+    console:
+      enabled: true
+
+anthropic:
+  api-key: test-key
+  model: claude-sonnet-4-5
+  max-tokens: 512
+
+public:
+  data:
+    api-key: test-key
+    base-url: https://apis.data.go.kr
