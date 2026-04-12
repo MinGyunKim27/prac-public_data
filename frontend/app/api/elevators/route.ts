@@ -1,72 +1,99 @@
 import { NextResponse } from 'next/server'
 import type { Elevator } from '@/types/transportation'
-import { getStationCoords } from '@/lib/station-coords'
 import { haversineDistance } from '@/lib/geo'
 
 const SEOUL_METRO_API_KEY = process.env.SEOUL_METRO_API_KEY
-const PAGE_SIZE = 1000 // 한 번에 최대 조회 건수
+const KAKAO_REST_API_KEY = process.env.KAKAO_REST_API_KEY
+const PAGE_SIZE = 1000
 
-// 서울교통공사 SeoulMetroFaciInfo API 응답 원본 타입
+// 실제 API 응답 필드명
 interface SeoulMetroFaciRow {
-  STATION_CD: string
-  STATION_NM: string
-  LINE_NUM: string
-  FACI_ID: string
-  FACI_NM: string
-  FACI_TYPE_NM: string    // 엘리베이터 / 에스컬레이터 / 수직형 리프트 등
-  FACI_STAT: string       // 정상 / 고장 / 점검중
-  FACI_STAT_MSG?: string
-  FLOOR_INFO?: string
-  UPDT_DT?: string
+  STN_CD?: string    // 역코드
+  STN_NM?: string    // 역명
+  ELVTR_NM?: string  // 승강기명
+  OPR_SEC?: string   // 운행구간
+  INSTL_PSTN?: string // 설치위치
+  USE_YN?: string    // 운영상태 (Y/N)
+  ELVTR_SE?: string  // 승강기 구분 (엘리베이터/에스컬레이터 등)
 }
 
-interface SeoulMetroApiResponse {
-  SeoulMetroFaciInfo: {
-    list_total_count: number
-    RESULT: { CODE: string; MESSAGE: string }
-    row: SeoulMetroFaciRow[]
+// 모듈 레벨 캐시 — 서버 인스턴스 생존 동안 유지되어 중복 Kakao 호출 방지
+const geocodeCache = new Map<string, { lat: number; lng: number } | null>()
+
+async function geocodeStation(
+  stationName: string
+): Promise<{ lat: number; lng: number } | null> {
+  if (geocodeCache.has(stationName)) return geocodeCache.get(stationName)!
+
+  if (!KAKAO_REST_API_KEY) {
+    geocodeCache.set(stationName, null)
+    return null
   }
-}
 
-function mapStatus(faci_stat: string): 'normal' | 'maintenance' | 'error' {
-  if (faci_stat === '정상') return 'normal'
-  if (faci_stat === '점검중') return 'maintenance'
-  return 'error'
-}
+  const query = stationName.endsWith('역') ? stationName : `${stationName}역`
+  const url = `https://dapi.kakao.com/v2/local/search/keyword.json?query=${encodeURIComponent(query)}&category_group_code=SW8&size=1`
 
-function rowToElevator(row: SeoulMetroFaciRow): Elevator | null {
-  const coords = getStationCoords(row.STATION_NM)
-  // 좌표를 찾을 수 없으면 지도 마커에는 표시하지 않으므로 null 반환
-  if (!coords) return null
-
-  return {
-    id: row.FACI_ID || `${row.STATION_CD}-${row.FACI_NM}`,
-    stationName: row.STATION_NM,
-    lineNum: row.LINE_NUM,
-    location: [row.FLOOR_INFO, row.FACI_NM].filter(Boolean).join(' '),
-    status: mapStatus(row.FACI_STAT),
-    lat: coords.lat,
-    lng: coords.lng,
-    lastUpdated: row.UPDT_DT,
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `KakaoAK ${KAKAO_REST_API_KEY}` },
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) {
+      geocodeCache.set(stationName, null)
+      return null
+    }
+    const json = await res.json()
+    const doc = json.documents?.[0]
+    const coords = doc ? { lat: parseFloat(doc.y), lng: parseFloat(doc.x) } : null
+    geocodeCache.set(stationName, coords)
+    return coords
+  } catch {
+    geocodeCache.set(stationName, null)
+    return null
   }
 }
 
 async function fetchAllElevators(): Promise<Elevator[]> {
   if (!SEOUL_METRO_API_KEY) throw new Error('SEOUL_METRO_API_KEY 미설정')
 
-  // 전체 데이터 조회 (1~1000번째)
   const url = `http://openapi.seoul.go.kr:8088/${SEOUL_METRO_API_KEY}/json/SeoulMetroFaciInfo/1/${PAGE_SIZE}/`
   const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
   if (!res.ok) throw new Error(`서울 승강기 API HTTP ${res.status}`)
 
-  const json: SeoulMetroApiResponse = await res.json()
-  const meta = json.SeoulMetroFaciInfo
+  const json = await res.json()
+  const meta = json?.SeoulMetroFaciInfo
   if (!meta || meta.RESULT?.CODE !== 'INFO-000') {
     throw new Error(`서울 승강기 API 오류: ${meta?.RESULT?.MESSAGE}`)
   }
 
-  return (meta.row ?? [])
-    .map(rowToElevator)
+  const rows: SeoulMetroFaciRow[] = meta.row ?? []
+
+  // 캐시에 없는 역명만 Kakao 지오코딩 (5개씩 병렬)
+  const uncachedNames = [
+    ...new Set(rows.map((r) => r.STN_NM).filter((n): n is string => !!n && !geocodeCache.has(n))),
+  ]
+  for (let i = 0; i < uncachedNames.length; i += 5) {
+    await Promise.allSettled(
+      uncachedNames.slice(i, i + 5).map((name) => geocodeStation(name))
+    )
+  }
+
+  return rows
+    .map((row, index): Elevator | null => {
+      if (!row.STN_NM) return null
+      const coords = geocodeCache.get(row.STN_NM)
+      if (!coords) return null
+
+      return {
+        id: `${row.STN_CD ?? 'unk'}-${row.ELVTR_NM ?? index}`,
+        stationName: row.STN_NM,
+        lineNum: '',
+        location: [row.INSTL_PSTN, row.OPR_SEC].filter(Boolean).join(' '),
+        status: row.USE_YN === 'Y' ? 'normal' : 'error',
+        lat: coords.lat,
+        lng: coords.lng,
+      }
+    })
     .filter((e): e is Elevator => e !== null)
 }
 
@@ -79,12 +106,13 @@ export async function GET(request: Request) {
   try {
     const all = await fetchAllElevators()
 
-    // 반경 내 필터링
     const filtered = all.filter(
       (e) => haversineDistance(lat, lng, e.lat, e.lng) <= radius
     )
 
-    console.log(`[승강기] 실제 API 사용: 전체 ${all.length}건 → 반경 ${radius}m 내 ${filtered.length}건`)
+    console.log(
+      `[승강기] 전체 ${all.length}건 → 반경 ${radius}m 내 ${filtered.length}건`
+    )
     return NextResponse.json(filtered)
   } catch (error) {
     console.error('승강기 API 오류, 목업 사용:', error)
@@ -93,32 +121,26 @@ export async function GET(request: Request) {
 }
 
 // ─── 목업 (폴백용) ─────────────────────────────────────────────────────────────
-function generateMockElevators(centerLat: number, centerLng: number, radius: number): Elevator[] {
+function generateMockElevators(
+  centerLat: number,
+  centerLng: number,
+  radius: number
+): Elevator[] {
   const stations = [
-    { name: '시청역', line: '1호선' }, { name: '을지로입구역', line: '2호선' },
-    { name: '광화문역', line: '5호선' }, { name: '종각역', line: '1호선' },
-    { name: '안국역', line: '3호선' }, { name: '경복궁역', line: '3호선' },
-    { name: '서대문역', line: '5호선' }, { name: '충정로역', line: '2호선' },
+    { name: '시청', line: '1' },
+    { name: '을지로입구', line: '2' },
   ]
-  const locations = ['1번 출구', '2번 출구', '3번 출구', '대합실', '승강장', '환승통로']
-  const statuses: Array<'normal' | 'maintenance' | 'error'> = [
-    'normal', 'normal', 'normal', 'normal', 'maintenance', 'error',
-  ]
-
-  return stations.map((station, index) => {
+  return stations.map((s, index) => {
     const angle = (index / stations.length) * 2 * Math.PI
-    const distance = (Math.random() * 0.8 + 0.2) * (radius / 111000)
-    const lat = centerLat + distance * Math.cos(angle)
-    const lng = centerLng + (distance * Math.sin(angle)) / Math.cos((centerLat * Math.PI) / 180)
+    const distance = 0.3 * (radius / 111000)
     return {
-      id: `elv-${index + 1}`,
-      stationName: station.name,
-      lineNum: station.line,
-      location: locations[index % locations.length],
-      status: statuses[Math.floor(Math.random() * statuses.length)],
-      lat,
-      lng,
-      lastUpdated: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+      id: `elev-mock-${index + 1}`,
+      stationName: s.name,
+      lineNum: s.line,
+      location: '1번 출구',
+      status: 'normal',
+      lat: centerLat + distance * Math.cos(angle),
+      lng: centerLng + (distance * Math.sin(angle)) / Math.cos((centerLat * Math.PI) / 180),
     }
   })
 }

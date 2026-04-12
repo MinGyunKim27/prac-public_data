@@ -17,14 +17,22 @@ const fetcher = async (url: string) => {
   return res.json()
 }
 
-// 승강기 데이터 훅
-export function useElevatorData({ center, radius, stdgCd, refreshInterval = 30000, enabled = true }: UseRealTimeDataOptions) {
-  const key = center && enabled ? `/api/elevators?lat=${center.lat}&lng=${center.lng}&radius=${radius}` : null
+// 지하철역 + 승강기 통합 훅 (Kakao SW8 + 서울메트로 API)
+export function useSubwayStationData({
+  center,
+  radius,
+  refreshInterval = 60000,
+  enabled = true,
+}: UseRealTimeDataOptions) {
+  const key =
+    center && enabled
+      ? `/api/subway-stations?lat=${center.lat}&lng=${center.lng}&radius=${radius}`
+      : null
 
   return useSWR(key, fetcher, {
     refreshInterval,
     revalidateOnFocus: false,
-    dedupingInterval: 5000,
+    dedupingInterval: 30000,
   })
 }
 
@@ -37,7 +45,10 @@ export function useMobilityCenterData({
   enabled = true,
 }: UseRealTimeDataOptions) {
   const stdgParam = stdgCd ? `&stdgCd=${stdgCd}` : ''
-  const key = center && enabled ? `/api/mobility-centers?lat=${center.lat}&lng=${center.lng}&radius=${radius}${stdgParam}` : null
+  const key =
+    center && enabled
+      ? `/api/mobility-centers?lat=${center.lat}&lng=${center.lng}&radius=${radius}${stdgParam}`
+      : null
 
   return useSWR(key, fetcher, {
     refreshInterval,
@@ -55,7 +66,10 @@ export function useAccidentSpotData({
   enabled = true,
 }: UseRealTimeDataOptions) {
   const stdgParam = stdgCd ? `&stdgCd=${stdgCd}` : ''
-  const key = center && enabled ? `/api/accident-spots?lat=${center.lat}&lng=${center.lng}&radius=${radius}${stdgParam}` : null
+  const key =
+    center && enabled
+      ? `/api/accident-spots?lat=${center.lat}&lng=${center.lng}&radius=${radius}${stdgParam}`
+      : null
 
   return useSWR(key, fetcher, {
     refreshInterval,
@@ -64,7 +78,7 @@ export function useAccidentSpotData({
   })
 }
 
-// 버스 위치 데이터 훅
+// 버스 정류소 데이터 훅
 export function useBusLocationData({
   center,
   radius,
@@ -73,7 +87,10 @@ export function useBusLocationData({
   enabled = true,
 }: UseRealTimeDataOptions) {
   const stdgParam = stdgCd ? `&stdgCd=${stdgCd}` : ''
-  const key = center && enabled ? `/api/bus-locations?lat=${center.lat}&lng=${center.lng}&radius=${radius}${stdgParam}` : null
+  const key =
+    center && enabled
+      ? `/api/bus-locations?lat=${center.lat}&lng=${center.lng}&radius=${radius}${stdgParam}`
+      : null
 
   return useSWR(key, fetcher, {
     refreshInterval,
@@ -84,25 +101,32 @@ export function useBusLocationData({
 
 // 통합 데이터 훅 (모든 레이어 데이터)
 export function useAllTransportData(options: UseRealTimeDataOptions) {
-  const elevators = useElevatorData(options)
+  const subwayStations = useSubwayStationData(options)
   const mobilityCenters = useMobilityCenterData(options)
   const accidentSpots = useAccidentSpotData(options)
   const busLocations = useBusLocationData(options)
 
   const isLoading =
-    elevators.isLoading || mobilityCenters.isLoading || accidentSpots.isLoading || busLocations.isLoading
+    subwayStations.isLoading ||
+    mobilityCenters.isLoading ||
+    accidentSpots.isLoading ||
+    busLocations.isLoading
 
-  const isError = elevators.error || mobilityCenters.error || accidentSpots.error || busLocations.error
+  const isError =
+    subwayStations.error ||
+    mobilityCenters.error ||
+    accidentSpots.error ||
+    busLocations.error
 
   const refetchAll = () => {
-    elevators.mutate()
+    subwayStations.mutate()
     mobilityCenters.mutate()
     accidentSpots.mutate()
     busLocations.mutate()
   }
 
   return {
-    elevators: elevators.data || [],
+    subwayStations: subwayStations.data || [],
     mobilityCenters: mobilityCenters.data || [],
     accidentSpots: accidentSpots.data || [],
     busLocations: busLocations.data || [],

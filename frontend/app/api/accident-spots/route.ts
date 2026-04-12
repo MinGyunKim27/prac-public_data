@@ -135,6 +135,7 @@ export async function GET(request: Request) {
 
   try {
     const { sidoName, sigunguName } = getRegionFromStdgCd(stdgCd)
+    if (!sidoName) return NextResponse.json([])
     const all = await fetchAccidentSpots(sidoName, sigunguName)
 
     const filtered = all.filter(

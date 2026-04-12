@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useAllTransportData } from '@/hooks/use-real-time-data'
 import { MarkerPopup } from './marker-popup'
-import type { Location, RadiusOption, LayerFilters, Elevator, AccidentSpot, MobilityCenter, BusStop } from '@/types/transportation'
+import type { Location, RadiusOption, LayerFilters, AccidentSpot, MobilityCenter, BusStop, SubwayStation } from '@/types/transportation'
 
 interface KakaoMapProps {
   center: Location | null
@@ -16,9 +16,10 @@ interface KakaoMapProps {
 
 // 마커 이미지 SVG 데이터
 const MARKER_ICONS = {
-  elevator: {
-    normal: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.164 0 0 7.164 0 16c0 8.837 16 24 16 24s16-15.163 16-24C32 7.164 24.836 0 16 0z" fill="#22c55e"/><path d="M10 12v8h4v-3h4v3h4v-8h-4v3h-4v-3h-4z" fill="white"/></svg>`,
-    error: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.164 0 0 7.164 0 16c0 8.837 16 24 16 24s16-15.163 16-24C32 7.164 24.836 0 16 0z" fill="#ef4444"/><path d="M10 12v8h4v-3h4v3h4v-8h-4v3h-4v-3h-4z" fill="white"/></svg>`,
+  // 지하철역: 승강기 있으면 보라, 없으면 회색
+  subwayStation: {
+    withElevator: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.164 0 0 7.164 0 16c0 8.837 16 24 16 24s16-15.163 16-24C32 7.164 24.836 0 16 0z" fill="#8b5cf6"/><rect x="9" y="8" width="14" height="11" rx="2" fill="white"/><rect x="11" y="10" width="4" height="3" rx="1" fill="#8b5cf6"/><rect x="17" y="10" width="4" height="3" rx="1" fill="#8b5cf6"/><rect x="9" y="19" width="14" height="1.5" fill="white"/><circle cx="12" cy="22" r="1.5" fill="white"/><circle cx="20" cy="22" r="1.5" fill="white"/></svg>`,
+    noElevator:   `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.164 0 0 7.164 0 16c0 8.837 16 24 16 24s16-15.163 16-24C32 7.164 24.836 0 16 0z" fill="#9ca3af"/><rect x="9" y="8" width="14" height="11" rx="2" fill="white"/><rect x="11" y="10" width="4" height="3" rx="1" fill="#9ca3af"/><rect x="17" y="10" width="4" height="3" rx="1" fill="#9ca3af"/><rect x="9" y="19" width="14" height="1.5" fill="white"/><circle cx="12" cy="22" r="1.5" fill="white"/><circle cx="20" cy="22" r="1.5" fill="white"/></svg>`,
   },
   accidentSpot: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.164 0 0 7.164 0 16c0 8.837 16 24 16 24s16-15.163 16-24C32 7.164 24.836 0 16 0z" fill="#f97316"/><path d="M16 8l-6 12h12L16 8zm0 3.5l3.5 7h-7l3.5-7z" fill="white"/><circle cx="16" cy="18" r="1" fill="white"/></svg>`,
   busStop: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.164 0 0 7.164 0 16c0 8.837 16 24 16 24s16-15.163 16-24C32 7.164 24.836 0 16 0z" fill="#3b82f6"/><rect x="9" y="8" width="14" height="14" rx="2" fill="white"/><rect x="11" y="10" width="10" height="5" fill="#3b82f6"/><circle cx="12" cy="19" r="1.5" fill="#3b82f6"/><circle cx="20" cy="19" r="1.5" fill="#3b82f6"/></svg>`,
@@ -41,13 +42,12 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
   const [stdgCdLocal, setStdgCdLocal] = useState<string>('')
   const hasInitializedRef = useRef(false)
   const [selectedMarker, setSelectedMarker] = useState<{
-    type: 'elevator' | 'accidentSpot' | 'busStop' | 'mobilityCenter'
-    data: Elevator | AccidentSpot | MobilityCenter | BusStop
+    type: 'subwayStation' | 'accidentSpot' | 'busStop' | 'mobilityCenter'
+    data: SubwayStation | AccidentSpot | MobilityCenter | BusStop
     position: { x: number; y: number }
   } | null>(null)
 
-  // 실시간 데이터 가져오기
-  const { elevators, accidentSpots, mobilityCenters, busLocations } = useAllTransportData({
+  const { subwayStations, accidentSpots, mobilityCenters, busLocations } = useAllTransportData({
     center,
     radius,
     stdgCd: stdgCdLocal,
@@ -61,7 +61,6 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
 
     const initMap = () => {
       if (!window.kakao?.maps) {
-        // 카카오맵 로드 대기
         setTimeout(initMap, 100)
         return
       }
@@ -77,7 +76,6 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
         const map = new window.kakao.maps.Map(mapRef.current, mapOptions)
         mapInstanceRef.current = map
 
-        // 행정동 코드 조회 헬퍼
         const fetchStdgCd = (lat: number, lng: number) => {
           try {
             const geocoder = new window.kakao.maps.services.Geocoder()
@@ -95,10 +93,8 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
           }
         }
 
-        // 초기 위치 행정동 코드 조회
         fetchStdgCd(center.lat, center.lng)
 
-        // 지도 이동 이벤트
         window.kakao.maps.event.addListener(map, 'dragend', () => {
           const latlng = map.getCenter()
           const newLat = latlng.getLat()
@@ -107,7 +103,6 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
           fetchStdgCd(newLat, newLng)
         })
 
-        // 반경 원 추가
         const circle = new window.kakao.maps.Circle({
           center: new window.kakao.maps.LatLng(center.lat, center.lng),
           radius: radius,
@@ -121,7 +116,6 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
         circle.setMap(map)
         circleRef.current = circle
 
-        // 현재 위치 마커
         const currentMarker = new window.kakao.maps.Marker({
           position: new window.kakao.maps.LatLng(center.lat, center.lng),
           map: map,
@@ -148,185 +142,98 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
   // 중심 변경 시 지도 이동
   useEffect(() => {
     if (!mapInstanceRef.current || !center) return
-
     const latlng = new window.kakao.maps.LatLng(center.lat, center.lng)
     mapInstanceRef.current.panTo(latlng)
-
-    // 반경 원 업데이트
-    if (circleRef.current) {
-      circleRef.current.setOptions({
-        center: latlng,
-        radius: radius,
-      })
-    }
-
-    // 현재 위치 마커 업데이트
-    if (currentLocationMarkerRef.current) {
-      currentLocationMarkerRef.current.setPosition(latlng)
-    }
+    if (circleRef.current) circleRef.current.setOptions({ center: latlng, radius })
+    if (currentLocationMarkerRef.current) currentLocationMarkerRef.current.setPosition(latlng)
   }, [center, radius])
 
   // 줌 레벨 업데이트
   useEffect(() => {
     if (!mapInstanceRef.current) return
     mapInstanceRef.current.setLevel(getZoomLevelForRadius(radius))
-
-    if (circleRef.current) {
-      circleRef.current.setRadius(radius)
-    }
+    if (circleRef.current) circleRef.current.setRadius(radius)
   }, [radius])
 
   // 마커 업데이트
   useEffect(() => {
     if (!mapInstanceRef.current || !isLoaded) return
 
-    // 기존 마커 제거
     markersRef.current.forEach((marker) => marker.setMap(null))
     markersRef.current = []
 
     const map = mapInstanceRef.current
 
-    // 승강기 마커
-    if (layerFilters.elevator && elevators) {
-      elevators.forEach((elevator: Elevator) => {
-        const markerImage = new window.kakao.maps.MarkerImage(
-          svgToDataUrl(elevator.status === 'normal' ? MARKER_ICONS.elevator.normal : MARKER_ICONS.elevator.error),
+    const addMarker = (
+      lat: number,
+      lng: number,
+      iconSvg: string,
+      title: string,
+      onClick: () => void,
+    ) => {
+      const marker = new window.kakao.maps.Marker({
+        position: new window.kakao.maps.LatLng(lat, lng),
+        map,
+        image: new window.kakao.maps.MarkerImage(
+          svgToDataUrl(iconSvg),
           new window.kakao.maps.Size(32, 40),
           { offset: new window.kakao.maps.Point(16, 40) }
-        )
+        ),
+        title,
+      })
+      window.kakao.maps.event.addListener(marker, 'click', onClick)
+      markersRef.current.push(marker)
+    }
 
-        const marker = new window.kakao.maps.Marker({
-          position: new window.kakao.maps.LatLng(elevator.lat, elevator.lng),
-          map: map,
-          image: markerImage,
-          title: elevator.stationName,
+    // ── 지하철역 마커
+    if (layerFilters.subwayStation && subwayStations) {
+      subwayStations.forEach((station: SubwayStation) => {
+        const hasWorkingElevator = station.elevators.some((e) => e.status === 'normal')
+        const icon = station.elevators.length > 0
+          ? (hasWorkingElevator ? MARKER_ICONS.subwayStation.withElevator : MARKER_ICONS.subwayStation.noElevator)
+          : MARKER_ICONS.subwayStation.noElevator
+
+        addMarker(station.lat, station.lng, icon, station.name, () => {
+          setSelectedMarker({ type: 'subwayStation', data: station, position: { x: 200, y: 200 } })
         })
-
-        window.kakao.maps.event.addListener(marker, 'click', () => {
-          const projection = map.getProjection?.()
-          if (projection) {
-            const point = projection.containerPointFromCoords(marker.getPosition())
-            setSelectedMarker({
-              type: 'elevator',
-              data: elevator,
-              position: { x: point?.x || 0, y: point?.y || 0 },
-            })
-          } else {
-            setSelectedMarker({
-              type: 'elevator',
-              data: elevator,
-              position: { x: 200, y: 200 },
-            })
-          }
-        })
-
-        markersRef.current.push(marker)
       })
     }
 
-    // 사고다발지점 마커
+    // ── 사고다발지점 마커
     if (layerFilters.accidentSpot && accidentSpots) {
       accidentSpots.forEach((spot: AccidentSpot) => {
-        const markerImage = new window.kakao.maps.MarkerImage(
-          svgToDataUrl(MARKER_ICONS.accidentSpot),
-          new window.kakao.maps.Size(32, 40),
-          { offset: new window.kakao.maps.Point(16, 40) }
-        )
-
-        const marker = new window.kakao.maps.Marker({
-          position: new window.kakao.maps.LatLng(spot.lat, spot.lng),
-          map: map,
-          image: markerImage,
-          title: spot.address,
+        addMarker(spot.lat, spot.lng, MARKER_ICONS.accidentSpot, spot.address, () => {
+          setSelectedMarker({ type: 'accidentSpot', data: spot, position: { x: 200, y: 200 } })
         })
-
-        window.kakao.maps.event.addListener(marker, 'click', () => {
-          setSelectedMarker({
-            type: 'accidentSpot',
-            data: spot,
-            position: { x: 200, y: 200 },
-          })
-        })
-
-        markersRef.current.push(marker)
       })
     }
 
-    // 정류장 마커 (버스 위치 기반)
+    // ── 버스 정류장 마커
     if (layerFilters.busStop && busLocations) {
-      // busLocations를 정류장으로 변환
-      const stops = busLocations.map((bus: { id: string; currentStop: string; lat: number; lng: number; routeName: string }) => ({
-        id: bus.id,
-        name: bus.currentStop,
-        lat: bus.lat,
-        lng: bus.lng,
-        routes: [bus.routeName],
-      }))
-
-      stops.forEach((stop: BusStop) => {
-        const markerImage = new window.kakao.maps.MarkerImage(
-          svgToDataUrl(MARKER_ICONS.busStop),
-          new window.kakao.maps.Size(32, 40),
-          { offset: new window.kakao.maps.Point(16, 40) }
-        )
-
-        const marker = new window.kakao.maps.Marker({
-          position: new window.kakao.maps.LatLng(stop.lat, stop.lng),
-          map: map,
-          image: markerImage,
-          title: stop.name,
+      busLocations.forEach((bus: { id: string; currentStop: string; lat: number; lng: number; routeName: string }) => {
+        const stop: BusStop = { id: bus.id, name: bus.currentStop, lat: bus.lat, lng: bus.lng, routes: [bus.routeName] }
+        addMarker(stop.lat, stop.lng, MARKER_ICONS.busStop, stop.name, () => {
+          setSelectedMarker({ type: 'busStop', data: stop, position: { x: 200, y: 200 } })
         })
-
-        window.kakao.maps.event.addListener(marker, 'click', () => {
-          setSelectedMarker({
-            type: 'busStop',
-            data: stop,
-            position: { x: 200, y: 200 },
-          })
-        })
-
-        markersRef.current.push(marker)
       })
     }
 
-    // 이동지원센터(콜택시) 마커
+    // ── 이동지원센터(콜택시) 마커
     if (layerFilters.mobilityCenter && mobilityCenters) {
-      mobilityCenters.forEach((center: MobilityCenter) => {
-        const markerImage = new window.kakao.maps.MarkerImage(
-          svgToDataUrl(MARKER_ICONS.mobilityCenter),
-          new window.kakao.maps.Size(32, 40),
-          { offset: new window.kakao.maps.Point(16, 40) }
-        )
-
-        const marker = new window.kakao.maps.Marker({
-          position: new window.kakao.maps.LatLng(center.lat, center.lng),
-          map: map,
-          image: markerImage,
-          title: center.centerName,
+      mobilityCenters.forEach((mc: MobilityCenter) => {
+        addMarker(mc.lat, mc.lng, MARKER_ICONS.mobilityCenter, mc.centerName, () => {
+          setSelectedMarker({ type: 'mobilityCenter', data: mc, position: { x: 200, y: 200 } })
         })
-
-        window.kakao.maps.event.addListener(marker, 'click', () => {
-          setSelectedMarker({
-            type: 'mobilityCenter',
-            data: center,
-            position: { x: 200, y: 200 },
-          })
-        })
-
-        markersRef.current.push(marker)
       })
     }
-  }, [isLoaded, layerFilters, elevators, accidentSpots, busLocations, mobilityCenters])
+  }, [isLoaded, layerFilters, subwayStations, accidentSpots, busLocations, mobilityCenters])
 
-  const handleClosePopup = useCallback(() => {
-    setSelectedMarker(null)
-  }, [])
+  const handleClosePopup = useCallback(() => setSelectedMarker(null), [])
 
   return (
     <div className="relative w-full h-full">
       <div ref={mapRef} className="w-full h-full" />
 
-      {/* 로딩 표시 */}
       {!isLoaded && (
         <div className="absolute inset-0 flex items-center justify-center bg-muted">
           <div className="flex flex-col items-center gap-2">
@@ -336,7 +243,6 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
         </div>
       )}
 
-      {/* 마커 클릭 팝업 */}
       {selectedMarker && (
         <MarkerPopup
           type={selectedMarker.type}
@@ -348,16 +254,8 @@ export function KakaoMap({ center, radius, layerFilters, onCenterChange, onStdgC
   )
 }
 
-// 반경에 따른 줌 레벨 계산
-function getZoomLevelForRadius(radius: RadiusOption): number {
-  switch (radius) {
-    case 500:
-      return 5
-    case 1000:
-      return 6
-    case 2000:
-      return 7
-    default:
-      return 6
-  }
+function getZoomLevelForRadius(radius: number): number {
+  if (radius <= 500) return 5
+  if (radius <= 1000) return 6
+  return 7
 }

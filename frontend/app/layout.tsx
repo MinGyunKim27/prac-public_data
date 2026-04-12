@@ -68,6 +68,11 @@ export default function RootLayout({
           src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${process.env.NEXT_PUBLIC_KAKAO_MAP_KEY}&libraries=services,clusterer&autoload=false`}
           strategy="beforeInteractive"
         />
+        {/* 카카오 JavaScript SDK (공유 기능) */}
+        <Script
+          src="https://t1.kakaocdn.net/kakaojs/2.7.2/kakao.min.js"
+          strategy="beforeInteractive"
+        />
       </body>
     </html>
   )

@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUpDown, AlertTriangle, Bus, Car } from 'lucide-react'
+import { Train, AlertTriangle, Bus, Car } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { LayerFilters } from '@/types/transportation'
 
@@ -18,10 +18,10 @@ interface LayerOption {
 
 const LAYER_OPTIONS: LayerOption[] = [
   {
-    key: 'elevator',
-    label: '승강기',
-    icon: <ArrowUpDown className="h-4 w-4" />,
-    activeColor: 'bg-success text-success-foreground',
+    key: 'subwayStation',
+    label: '지하철역',
+    icon: <Train className="h-4 w-4" />,
+    activeColor: 'bg-purple-500 text-white',
   },
   {
     key: 'accidentSpot',

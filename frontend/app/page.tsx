@@ -8,8 +8,9 @@ import { FontSizeControl } from '@/components/accessibility/font-size-control'
 import { HighContrastToggle } from '@/components/accessibility/high-contrast-toggle'
 import { LocationSearch } from '@/components/search/location-search'
 import { RouteInput } from '@/components/search/route-input'
-import { QuickActions, NearbyStopsContent, OutingCourseContent } from '@/components/features/quick-actions'
+import { QuickActions, NearbyStopsContent } from '@/components/features/quick-actions'
 import { GuardianShareContent } from '@/components/features/guardian-share'
+import { MobilityServicePanel } from '@/components/features/mobility-service-panel'
 import { RadiusSelector } from '@/components/map/radius-selector'
 import { MapLayerFilter } from '@/components/map/map-layer-filter'
 import { MobilityAidSelector } from '@/components/ai/mobility-aid-selector'
@@ -18,7 +19,7 @@ import { AIRecommendation } from '@/components/ai/ai-recommendation'
 import { useGeolocation } from '@/hooks/use-geolocation'
 import type { Location, RadiusOption, LayerFilters, MobilityAid, UserType } from '@/types/transportation'
 
-type SheetType = 'nearbyStops' | 'outingCourse' | 'guardianShare' | null
+type SheetType = 'nearbyStops' | 'guardianShare' | null
 
 export default function Home() {
   // 위치 관련 상태
@@ -30,7 +31,7 @@ export default function Home() {
   // 지도 설정 상태
   const [radius, setRadius] = useState<RadiusOption>(1000)
   const [layerFilters, setLayerFilters] = useState<LayerFilters>({
-    elevator: true,
+    subwayStation: true,
     accidentSpot: true,
     busStop: true,
     mobilityCenter: true,
@@ -119,7 +120,6 @@ export default function Home() {
         <section aria-label="빠른 기능">
           <QuickActions
             onNearbyStops={() => setActiveSheet('nearbyStops')}
-            onOutingCourse={() => setActiveSheet('outingCourse')}
             onGuardianShare={() => setActiveSheet('guardianShare')}
           />
         </section>
@@ -164,6 +164,11 @@ export default function Home() {
           <MapLayerFilter filters={layerFilters} onChange={setLayerFilters} />
         </section>
 
+        {/* 교통약자 이동지원 서비스 패널 */}
+        <section aria-label="교통약자 이동지원 서비스">
+          <MobilityServicePanel stdgCd={stdgCd} />
+        </section>
+
         {/* AI 추천 결과 */}
         {showRecommendation && origin && destination && (
           <section aria-label="AI 경로 추천">
@@ -193,19 +198,7 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      <Sheet open={activeSheet === 'outingCourse'} onOpenChange={(open) => !open && setActiveSheet(null)}>
-        <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>나들이 코스 추천</SheetTitle>
-            <SheetDescription>교통약자를 위한 무장애 나들이 코스를 추천해드립니다</SheetDescription>
-          </SheetHeader>
-          <div className="flex-1 overflow-auto px-4 pb-4">
-            <OutingCourseContent />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <Sheet open={activeSheet === 'guardianShare'} onOpenChange={(open) => !open && setActiveSheet(null)}>
+<Sheet open={activeSheet === 'guardianShare'} onOpenChange={(open) => !open && setActiveSheet(null)}>
         <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl">
           <SheetHeader>
             <SheetTitle>보호자 위치 공유</SheetTitle>

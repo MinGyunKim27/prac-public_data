@@ -340,7 +340,8 @@ export const STATION_COORDS: Record<string, { lat: number; lng: number }> = {
  * 역명으로 좌표 조회
  * 동명이역(예: '시청'이 1호선/2호선 공통)은 같은 좌표로 처리됨에 주의
  */
-export function getStationCoords(stationName: string): { lat: number; lng: number } | null {
+export function getStationCoords(stationName: string | undefined | null): { lat: number; lng: number } | null {
+  if (!stationName) return null
   // API가 "시청역" 형태로 반환하는 경우 "역" 접미사 제거 후 재시도
   return STATION_COORDS[stationName]
     ?? STATION_COORDS[stationName.replace(/역$/, '')]
